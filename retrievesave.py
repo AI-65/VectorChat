@@ -2,6 +2,7 @@ import os
 import logging
 import json
 from dotenv import load_dotenv
+# Importing necessary modules and classes from the 'langchain' package
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.vectorstores import FAISS
 from langchain.chat_models import ChatOpenAI
@@ -15,19 +16,21 @@ from langchain.callbacks import get_openai_callback
 from typing import List
 from pydantic import BaseModel, Field
 
-# Set up logging
+# Setting up logging
 logging.basicConfig(filename='logfilechoose.log', level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Define mapping for Rechtsgebiet to vectorstore
+# Mapping Rechtsgebiet to specific vectorstore
 VECTORSTORE_MAP = {
     '1': '134_vectorstore',
     '2': 'sachenrecht_vectorstore',
 }
 
+# Pydantic model for line list
 class LineList(BaseModel):
     # "lines" is the key (attribute name) of the parsed output
     lines: List[str] = Field(description="Lines of text")
 
+# Output parser class to parse lines of text
 class LineListOutputParser(PydanticOutputParser):
     def __init__(self) -> None:
         super().__init__(pydantic_object=LineList)
@@ -35,6 +38,7 @@ class LineListOutputParser(PydanticOutputParser):
         lines = text.strip().split("\n")
         return LineList(lines=lines)
 
+# Decorator function to track OpenAI API usage
 def track_openai_api(func):
     def wrapper(*args, **kwargs):
         with get_openai_callback() as cb:
@@ -46,6 +50,7 @@ def track_openai_api(func):
         return result
     return wrapper
 
+# Function to load vectorstore from disk
 def load_vectorstore(save_path='faiss_index'):
     if os.path.exists(save_path):
         logging.info("Loading vectorstore from disk...")
@@ -57,6 +62,7 @@ def load_vectorstore(save_path='faiss_index'):
         logging.error(f"Vectorstore not found at {save_path}. Please run create_embeddings.py first.")
         return None
 
+# Function to setup language model chain
 def setup_llm_chain():
     QUERY_PROMPT = PromptTemplate(
         input_variables=["question"],
@@ -75,6 +81,7 @@ def setup_llm_chain():
 
     return llm, llm_chain
 
+# Function to create multi query retriever
 @track_openai_api
 def create_multi_query_retriever(vectorstore, llm, query):
     logging.getLogger('langchain.retrievers.multi_query').setLevel(logging.INFO)
@@ -84,19 +91,20 @@ def create_multi_query_retriever(vectorstore, llm, query):
     filtered_docs = compression_retriever.get_relevant_documents(query)
     return filtered_docs
 
-
+# Function to get user query
 def get_query():
     question = input("Enter your question: ")
     logging.info("Running query: '%s'", question)
     return question
 
-# Helper function for printing docs
+# Function to print retrieved documents
 def print_results(filtered_docs):
     if filtered_docs:
         print(f"\n{'-' * 100}\n".join([f"Document {i+1}:\n\n" + d.page_content for i, d in enumerate(filtered_docs)]))
     else:
         print("No results found for the given query.")
 
+# Function to get user's choice for vectorstore
 def get_vectorstore_choice():
     print("Select the Rechtsgebiet:")
     for key, value in VECTORSTORE_MAP.items():
@@ -107,8 +115,7 @@ def get_vectorstore_choice():
         choice = input("Enter the number corresponding to your choice: ")
     return VECTORSTORE_MAP[choice]
 
-
-
+# Function to save data to a JSON file
 def save_data(document_context, user_input):
     data = {
         'document_context': [doc.page_content for doc in document_context],  # We save only the document content
@@ -118,6 +125,7 @@ def save_data(document_context, user_input):
     with open('data.json', 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
+# Main function to execute the program
 def main():
     load_dotenv()
 
@@ -145,4 +153,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
