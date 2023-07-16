@@ -1,3 +1,4 @@
+# Import required libraries
 import os
 import json
 import logging
@@ -5,6 +6,7 @@ import functools
 from dotenv import load_dotenv
 from typing import Any, Dict, List, Optional
 
+# Import the LangChain functionality
 from langchain.callbacks.manager import AsyncCallbackManagerForChainRun, CallbackManagerForChainRun
 from langchain.chains.base import Chain
 from langchain.llms import OpenAIChat
@@ -15,6 +17,7 @@ from langchain.schema import BaseLanguageModel
 # Set up logging
 logging.basicConfig(filename='logfilechat.log', level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Decorator for logging the start of function execution and any errors that occur
 def log_errors_and_execution(function):
     @functools.wraps(function)
     def wrapper(*args, **kwargs):
@@ -28,7 +31,7 @@ def log_errors_and_execution(function):
 
     return wrapper
 
-
+# Define the PromptTemplate for condensing a follow-up question into a standalone question in German
 CONDENSE_PROMPT = PromptTemplate(
     input_variables=["context"],
     template="""Given the following conversation and a follow up question, rephrase the follow up question 
@@ -40,6 +43,7 @@ CONDENSE_PROMPT = PromptTemplate(
     Standalone question:"""
 )
 
+# Define the PromptTemplate for answering questions in the context of Sachenrecht in German
 QA_PROMPT = PromptTemplate(
     input_variables=["context"],
     template="""You are a helpful AI assistant for law students with the name IUSTUS. Du hilfst Ihnen Fragen zum 
@@ -53,8 +57,7 @@ QA_PROMPT = PromptTemplate(
     Helpful answer in markdown:"""
 )
 
-
-
+# Define a custom Chain class which first condenses the question and then generates an answer
 class MyCustomChain(Chain):
     condense_prompt: PromptTemplate
     qa_prompt: PromptTemplate
@@ -69,6 +72,7 @@ class MyCustomChain(Chain):
     def output_keys(self) -> List[str]:
         return [self.output_key]
     
+    # The _call method takes in the inputs and run_manager, generates a standalone question, and then generates an answer to the question
     @log_errors_and_execution
     def _call(
         self,
@@ -79,33 +83,25 @@ class MyCustomChain(Chain):
         standalone_question_prompt = self.condense_prompt.format_prompt(
             context=inputs["context"]
         )
-        print(f"Stage 1 - standalone_question_prompt: {standalone_question_prompt}") # Added print statement
-        logging.info(f"Stage 1 - standalone_question_prompt: {standalone_question_prompt}") # Added logging statement
         standalone_question_response = self.llm.generate_prompt(
             [standalone_question_prompt],
             callbacks=run_manager.get_child() if run_manager else None
         )
         standalone_question = standalone_question_response.generations[0][0].text
-        print(f"Stage 1 - standalone_question: {standalone_question}") # Added print statement
-        logging.info(f"Stage 1 - standalone_question: {standalone_question}") # Added logging statement
 
         # Stage 2: Generate answer based on standalone question
         answer_prompt = self.qa_prompt.format_prompt(
             context=standalone_question
         )
-        print(f"Stage 2 - answer_prompt: {answer_prompt}") # Added print statement
-        logging.info(f"Stage 2 - answer_prompt: {answer_prompt}") # Added logging statement
         answer_response = self.llm.generate_prompt(
             [answer_prompt],
             callbacks=run_manager.get_child() if run_manager else None
         )
         answer = answer_response.generations[0][0].text
-        print(f"Stage 2 - answer: {answer}") # Added print statement
-        logging.info(f"Stage 2 - answer: {answer}") # Added logging statement
 
         return {self.output_key: answer}
 
-
+# Function to load the query and the textchunks from a JSON file
 @log_errors_and_execution
 def load_data() -> str:
     with open('data.json', 'r', encoding='utf-8') as f:
@@ -114,13 +110,11 @@ def load_data() -> str:
     user_input = data['query']
     return document_context + " " + user_input
 
-
-
+# Function to use the Chain to answer questions
 @log_errors_and_execution
 def condense_and_answer():
     # Load documents from the JSON file
     context = load_data()
-    logging.info(f"Loaded context: {context}")
 
     llm = OpenAIChat(temperature=0)
 
@@ -136,7 +130,6 @@ def condense_and_answer():
         result = chain({"context": context})
 
         print(result['answer'])
-        logging.info(f"Generated answer: {result['answer']}")
 
         # Ask the user if they want to continue the conversation
         continue_chat = input("Would you like to ask another question? (yes/no): ")
@@ -147,6 +140,7 @@ def condense_and_answer():
         new_question = input("Please enter your next question: ")
         context = context + " " + new_question
 
+# Main function that loads the environment variables and starts the question-answering loop
 @log_errors_and_execution
 def main():
     load_dotenv()
