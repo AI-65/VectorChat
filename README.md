@@ -33,4 +33,3 @@ pip install -r requirements.txt
 
 4. Obtain an API key from OpenAI and include it in the `.env` file in the project directory.
 
-Note: Replace `<repository-link>` with the URL of this GitHub repository.
